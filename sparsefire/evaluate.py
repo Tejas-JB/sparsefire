@@ -36,25 +36,21 @@ def perplexity_wikitext2(
 
 
 def hellaswag_0shot(
-    model_path: str,
+    model,
+    tokenizer,
     batch_size: int = 8,
     device: str = "cuda:0",
-    attn_impl: str = "eager",
-    extra_model_args: str = "",
 ) -> dict:
-    """Run HellaSwag 0-shot via lm_eval Python API. Returns {acc, acc_norm}."""
+    """Run HellaSwag 0-shot via lm_eval using the actual loaded model."""
     import lm_eval
+    from lm_eval.models.huggingface import HFLM
 
-    model_args = f"pretrained={model_path},attn_implementation={attn_impl}"
-    if extra_model_args:
-        model_args = f"{model_args},{extra_model_args}"
+    lm = HFLM(pretrained=model, tokenizer=tokenizer, batch_size=batch_size, device=device)
     results = lm_eval.simple_evaluate(
-        model="hf",
-        model_args=model_args,
+        model=lm,
         tasks=["hellaswag"],
         num_fewshot=0,
         batch_size=batch_size,
-        device=device,
     )
     hs = results["results"]["hellaswag"]
     return {

@@ -210,10 +210,10 @@ def run_accuracy(cfg: Config, model, tokenizer) -> dict:
 
     logger.info("Evaluating HellaSwag 0-shot...")
     hs = hellaswag_0shot(
-        cfg.model_id,
+        model,
+        tokenizer,
         batch_size=cfg.hellaswag_batch_size,
         device=f"{cfg.device}:0" if ":" not in cfg.device else cfg.device,
-        attn_impl=cfg.attn_impl,
     )
     logger.info("HellaSwag acc=%.4f, acc_norm=%.4f", hs["acc"], hs["acc_norm"])
 
