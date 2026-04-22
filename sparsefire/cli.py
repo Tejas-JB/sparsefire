@@ -72,7 +72,9 @@ def _run_phase(phase: int, cfg: Config, args) -> dict:
         sparsity = args.sparsity if args.sparsity is not None else 0.40
         return activation_sparsity.run(cfg, sparsity=sparsity)
     if phase == 3:
-        raise NotImplementedError("Phase 3 (quantization) not yet implemented")
+        from . import quantization
+
+        return quantization.run(cfg, stack_sparsity=args.sparsity)
     if phase == 4:
         raise NotImplementedError("Phase 4 (attention sparsity) not yet implemented")
     raise NotImplementedError(f"Phase {phase} not yet implemented")
