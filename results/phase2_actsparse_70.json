@@ -1,0 +1,85 @@
+{
+  "phase": "phase2_actsparse_70",
+  "model_id": "meta-llama/Llama-3.2-1B-Instruct",
+  "timestamp_utc": "2026-04-22T05:14:10.031990+00:00",
+  "config": {
+    "dtype": "float16",
+    "attn_impl": "eager",
+    "n_runs": 20,
+    "n_tokens": 128,
+    "n_prompts": 50,
+    "seed": 0,
+    "lock_clocks": false,
+    "sample_interval_ms": 50
+  },
+  "energy": {
+    "joules_per_token": {
+      "mean": 1.9713533532873377,
+      "ci_low": 1.956951953125,
+      "ci_high": 1.9859596032873377,
+      "n": 20
+    },
+    "total_energy_j": {
+      "mean": 247.16375,
+      "ci_low": 236.769,
+      "ci_high": 253.30155,
+      "n": 20
+    },
+    "wallclock_s": {
+      "mean": 2.866669469999761,
+      "ci_low": 2.7446917049997865,
+      "ci_high": 2.937974199999644,
+      "n": 20
+    },
+    "mean_power_w": {
+      "mean": 86.5854790585098,
+      "ci_low": 86.33927099213551,
+      "ci_high": 86.84155734203276,
+      "n": 20
+    },
+    "peak_power_w": 89.117,
+    "tokens_per_second": {
+      "mean": 45.18817209902904,
+      "ci_low": 43.5786449243422,
+      "ci_high": 48.10402945328846,
+      "n": 20
+    }
+  },
+  "accuracy": {},
+  "sparsity": {
+    "target_mlp": 0.7,
+    "achieved_mlp_mean": 0.705343171849533,
+    "achieved_mlp_per_layer": [
+      0.7040904206760907,
+      0.7051274673630266,
+      0.7092390452607823,
+      0.7151944113590772,
+      0.7025922738919884,
+      0.7000952809600677,
+      0.7104631766392929,
+      0.7063495173019058,
+      0.7116527806074473,
+      0.713488610362337,
+      0.7118979007334504,
+      0.7086981158318706,
+      0.6996275692311309,
+      0.6971614305808049,
+      0.7001067900968531,
+      0.6897059586964017
+    ],
+    "target_attn_top_k_frac": null,
+    "attention_sink_preserved": null,
+    "quantization": null
+  },
+  "metadata": {
+    "git_sha": "49b1ed2105e8671ecdf6e24da7ba18c89e8342f9",
+    "git_dirty": true,
+    "python_version": "3.12.7",
+    "torch_version": "2.5.1+cu124",
+    "gpu_name": "NVIDIA GeForce RTX 3060",
+    "host": "DESKTOP-GPA5IUC",
+    "transformers_version": "4.47.1",
+    "cuda_version": "12.4",
+    "driver_version": "560.94"
+  }
+}
