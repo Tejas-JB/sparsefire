@@ -69,7 +69,8 @@ def load_quantized_model(quant_dir: Path = _QUANT_DIR, attn_impl: str = "eager",
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    quant_config = AwqConfig(bits=4, do_fuse=fused)
+    fuse_kwargs = {"fuse_max_seq_len": 512} if fused else {}
+    quant_config = AwqConfig(bits=4, do_fuse=fused, **fuse_kwargs)
     model = AutoModelForCausalLM.from_pretrained(
         str(quant_dir),
         quantization_config=quant_config,

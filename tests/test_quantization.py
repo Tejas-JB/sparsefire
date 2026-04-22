@@ -40,7 +40,9 @@ def test_load_quantized_fused_uses_do_fuse_true(_mock_transformers, tmp_path):
 
     load_quantized_model(tmp_path, attn_impl="eager", fused=True)
 
-    _mock_transformers["AwqConfig"].assert_called_once_with(bits=4, do_fuse=True)
+    _mock_transformers["AwqConfig"].assert_called_once_with(
+        bits=4, do_fuse=True, fuse_max_seq_len=512
+    )
 
 
 def test_load_quantized_unfused_uses_do_fuse_false(_mock_transformers, tmp_path):
@@ -58,7 +60,9 @@ def test_load_quantized_default_is_fused(_mock_transformers, tmp_path):
 
     load_quantized_model(tmp_path)
 
-    _mock_transformers["AwqConfig"].assert_called_once_with(bits=4, do_fuse=True)
+    _mock_transformers["AwqConfig"].assert_called_once_with(
+        bits=4, do_fuse=True, fuse_max_seq_len=512
+    )
 
 
 def test_run_standalone_uses_fused(tmp_path):
