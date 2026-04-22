@@ -1,0 +1,85 @@
+{
+  "phase": "phase2_actsparse_25",
+  "model_id": "meta-llama/Llama-3.2-1B-Instruct",
+  "timestamp_utc": "2026-04-22T05:08:23.814330+00:00",
+  "config": {
+    "dtype": "float16",
+    "attn_impl": "eager",
+    "n_runs": 20,
+    "n_tokens": 128,
+    "n_prompts": 50,
+    "seed": 0,
+    "lock_clocks": false,
+    "sample_interval_ms": 50
+  },
+  "energy": {
+    "joules_per_token": {
+      "mean": 1.9747993107320336,
+      "ci_low": 1.958622265625,
+      "ci_high": 1.991399440940367,
+      "n": 20
+    },
+    "total_energy_j": {
+      "mean": 245.09290000000001,
+      "ci_low": 233.31005,
+      "ci_high": 252.78605,
+      "n": 20
+    },
+    "wallclock_s": {
+      "mean": 2.842813510000087,
+      "ci_low": 2.6942289450003045,
+      "ci_high": 2.9384849900000516,
+      "n": 20
+    },
+    "mean_power_w": {
+      "mean": 86.53888410966172,
+      "ci_low": 86.20967239593044,
+      "ci_high": 86.85352677210835,
+      "n": 20
+    },
+    "peak_power_w": 90.823,
+    "tokens_per_second": {
+      "mean": 45.82452088806548,
+      "ci_low": 43.57204033753214,
+      "ci_high": 49.62327346601643,
+      "n": 20
+    }
+  },
+  "accuracy": {},
+  "sparsity": {
+    "target_mlp": 0.25,
+    "achieved_mlp_mean": 0.253610463654146,
+    "achieved_mlp_per_layer": [
+      0.2533631166938315,
+      0.25506928500344783,
+      0.25634092218060434,
+      0.259096993127821,
+      0.24768188843875377,
+      0.24772927179977433,
+      0.25422544488935556,
+      0.2505098302720662,
+      0.2539684483136911,
+      0.25582852071840523,
+      0.25762651724705365,
+      0.25729360934365597,
+      0.25418859116411735,
+      0.25247703559898443,
+      0.25538309263728687,
+      0.24698485103748746
+    ],
+    "target_attn_top_k_frac": null,
+    "attention_sink_preserved": null,
+    "quantization": null
+  },
+  "metadata": {
+    "git_sha": "49b1ed2105e8671ecdf6e24da7ba18c89e8342f9",
+    "git_dirty": true,
+    "python_version": "3.12.7",
+    "torch_version": "2.5.1+cu124",
+    "gpu_name": "NVIDIA GeForce RTX 3060",
+    "host": "DESKTOP-GPA5IUC",
+    "transformers_version": "4.47.1",
+    "cuda_version": "12.4",
+    "driver_version": "560.94"
+  }
+}

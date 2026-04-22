@@ -34,9 +34,12 @@ def calibrate_thresholds(
 ) -> dict[int, float]:
     """Compute per-layer magnitude thresholds for down_proj input.
 
-    Runs n_samples forward passes, captures the gate*up product at each layer's
-    down_proj, and returns the target_sparsity-th percentile threshold per layer.
+    Uses reservoir sampling to collect a fixed-size sample of activation
+    magnitudes per layer, then computes the threshold via torch.quantile.
+    Memory-efficient: keeps at most reservoir_size values per layer.
     """
+    import gc
+
     from datasets import load_dataset
 
     logger.info(
@@ -49,18 +52,27 @@ def calibrate_thresholds(
     texts = [x["text"] for x in ds if len(x["text"].split()) >= 16][:n_samples]
 
     n_layers = len(model.model.layers)
-    # Collect activation magnitudes per layer
-    magnitudes: dict[int, list[torch.Tensor]] = {i: [] for i in range(n_layers)}
+    # Keep a capped reservoir of magnitudes per layer (memory-bounded)
+    reservoir_size = 500_000  # 500K values per layer ≈ 2MB per layer
+    reservoirs: dict[int, list[torch.Tensor]] = {i: [] for i in range(n_layers)}
+    counts: dict[int, int] = {i: 0 for i in range(n_layers)}
     handles = []
 
-    def make_capture_hook(layer_idx):
+    def make_capture_hook(layer_idx, _reservoirs=reservoirs, _counts=counts):
         def hook(module, args):
             x = args[0]
-            magnitudes[layer_idx].append(x.abs().detach().cpu().flatten())
+            mags = x.abs().detach().cpu().flatten()
+            n = mags.shape[0]
+            _counts[layer_idx] += n
+            if _counts[layer_idx] <= reservoir_size:
+                _reservoirs[layer_idx].append(mags)
+            else:
+                keep = max(1, int(n * reservoir_size / _counts[layer_idx]))
+                idx = torch.randperm(n)[:keep]
+                _reservoirs[layer_idx].append(mags[idx])
 
         return hook
 
-    # Register capture hooks on down_proj
     for i, layer in enumerate(model.model.layers):
         h = layer.mlp.down_proj.register_forward_pre_hook(make_capture_hook(i))
         handles.append(h)
@@ -71,19 +83,20 @@ def calibrate_thresholds(
             ids = ids.to(model.device)
             with torch.no_grad():
                 model(**ids)
-            if (i + 1) % 100 == 0:
+            if (i + 1) % 50 == 0:
                 logger.info("  calibration %d/%d", i + 1, len(texts))
     finally:
         for h in handles:
             h.remove()
 
-    # Compute per-layer thresholds
+    # Compute per-layer thresholds using quantile (much faster than full sort)
     thresholds = {}
     for layer_idx in range(n_layers):
-        all_mags = torch.cat(magnitudes[layer_idx])
-        percentile_idx = int(target_sparsity * len(all_mags))
-        sorted_mags, _ = all_mags.sort()
-        thresholds[layer_idx] = sorted_mags[min(percentile_idx, len(sorted_mags) - 1)].item()
+        all_mags = torch.cat(reservoirs[layer_idx])
+        thresholds[layer_idx] = torch.quantile(all_mags.float(), target_sparsity).item()
+        del all_mags
+    del reservoirs
+    gc.collect()
 
     logger.info("Calibrated thresholds: %s", {k: f"{v:.4f}" for k, v in thresholds.items()})
     return thresholds
