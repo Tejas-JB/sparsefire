@@ -45,7 +45,37 @@ def main(argv: list[str] | None = None) -> int:
         build_parser().print_help()
         return 2
 
-    raise NotImplementedError(f"phase {args.phase} runner lands with that phase's impl")
+    _run_phase(args.phase, cfg, args)
+    return 0
+
+
+def _run_phase(phase: int, cfg: Config, args) -> dict:
+    """Dispatch to the appropriate phase module."""
+    import logging
+
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
+    )
+
+    if phase == 0:
+        from . import baseline
+
+        return baseline.run(cfg)
+    if phase == 1:
+        from . import kv_cache
+
+        use_cache = not args.no_use_cache  # default True unless --no-use-cache
+        return kv_cache.run(cfg, use_cache=use_cache)
+    if phase == 2:
+        from . import activation_sparsity
+
+        sparsity = args.sparsity if args.sparsity is not None else 0.40
+        return activation_sparsity.run(cfg, sparsity=sparsity)
+    if phase == 3:
+        raise NotImplementedError("Phase 3 (quantization) not yet implemented")
+    if phase == 4:
+        raise NotImplementedError("Phase 4 (attention sparsity) not yet implemented")
+    raise NotImplementedError(f"Phase {phase} not yet implemented")
 
 
 def _smoke(cfg: Config) -> None:

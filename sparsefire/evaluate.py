@@ -2,11 +2,6 @@
 
 from __future__ import annotations
 
-import json
-import subprocess
-import tempfile
-from pathlib import Path
-
 
 def perplexity_wikitext2(
     model, tokenizer, split: str = "wikitext-2-raw-v1", stride: int = 512, max_length: int = 2048
@@ -47,37 +42,22 @@ def hellaswag_0shot(
     attn_impl: str = "eager",
     extra_model_args: str = "",
 ) -> dict:
-    """Run `lm_eval` as subprocess, parse results JSON, return {acc, acc_norm}."""
-    with tempfile.TemporaryDirectory() as tmp:
-        out_path = Path(tmp) / "results.json"
-        model_args = f"pretrained={model_path},attn_implementation={attn_impl}"
-        if extra_model_args:
-            model_args = f"{model_args},{extra_model_args}"
-        cmd = [
-            "lm_eval",
-            "--model",
-            "hf",
-            "--model_args",
-            model_args,
-            "--tasks",
-            "hellaswag",
-            "--num_fewshot",
-            "0",
-            "--batch_size",
-            str(batch_size),
-            "--device",
-            device,
-            "--output_path",
-            str(out_path),
-        ]
-        subprocess.run(cmd, check=True)
-        # lm-eval writes a nested structure; glob for the actual file
-        files = list(Path(tmp).rglob("*.json"))
-        if not files:
-            raise RuntimeError("lm_eval produced no output")
-        data = json.loads(files[0].read_text())
-        hs = data["results"]["hellaswag"]
-        return {
-            "acc": float(hs.get("acc,none", hs.get("acc"))),
-            "acc_norm": float(hs.get("acc_norm,none", hs.get("acc_norm"))),
-        }
+    """Run HellaSwag 0-shot via lm_eval Python API. Returns {acc, acc_norm}."""
+    import lm_eval
+
+    model_args = f"pretrained={model_path},attn_implementation={attn_impl}"
+    if extra_model_args:
+        model_args = f"{model_args},{extra_model_args}"
+    results = lm_eval.simple_evaluate(
+        model="hf",
+        model_args=model_args,
+        tasks=["hellaswag"],
+        num_fewshot=0,
+        batch_size=batch_size,
+        device=device,
+    )
+    hs = results["results"]["hellaswag"]
+    return {
+        "acc": float(hs.get("acc,none", hs.get("acc"))),
+        "acc_norm": float(hs.get("acc_norm,none", hs.get("acc_norm"))),
+    }

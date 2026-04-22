@@ -1,0 +1,41 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: pip install uv
+
+      # CPU-only dependency subset — GPU-specific deps (autoawq, nvidia-ml-py)
+      # are Linux+CUDA and excluded from CI. Their tests are marked @pytest.mark.gpu.
+      - name: Install CPU deps
+        run: |
+          uv pip install --system \
+            torch==2.5.* --index-url https://download.pytorch.org/whl/cpu
+          uv pip install --system \
+            "transformers==4.47.1" "accelerate>=1.0" "datasets>=3.0" \
+            "numpy>=1.26" "matplotlib>=3.9" "jsonschema>=4.23" "pyyaml>=6.0" \
+            "tqdm>=4.66" "lm-eval>=0.4.5" \
+            "pytest>=8.3" "pytest-mock>=3.14" "ruff>=0.7"
+          uv pip install --system -e . --no-deps
+
+      - name: Ruff lint
+        run: ruff check sparsefire tests
+
+      - name: Ruff format check
+        run: ruff format --check sparsefire tests
+
+      - name: Pytest (non-GPU)
+        run: pytest -v
