@@ -1,0 +1,61 @@
+[project]
+name = "sparsefire"
+version = "0.1.0"
+description = "Brain-inspired energy-efficiency pipeline for Llama-3.2-1B with per-phase J/token attribution."
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+license = { text = "MIT" }
+authors = [{ name = "Tejas JB" }]
+
+# Pinned due to AutoAWQ's transformers==4.47.1 requirement.
+# Deviations from these pins will break the quantization phase.
+dependencies = [
+    "torch==2.5.*",
+    "transformers==4.47.1",
+    "accelerate>=1.0",
+    "datasets>=3.0",
+    "autoawq>=0.2.7 ; sys_platform == 'linux'",
+    "nvidia-ml-py>=12.555 ; sys_platform == 'linux'",
+    "lm-eval>=0.4.5",
+    "numpy>=1.26",
+    "matplotlib>=3.9",
+    "jsonschema>=4.23",
+    "pyyaml>=6.0",
+    "tqdm>=4.66",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-mock>=3.14",
+    "ruff>=0.7",
+]
+
+[project.scripts]
+sparsefire = "sparsefire.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["sparsefire"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "gpu: requires CUDA GPU (skipped in CI and on Mac)",
+    "slow: takes >30s",
+]
+addopts = "-m 'not gpu' --strict-markers"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "SIM", "RET"]
+ignore = ["E501", "N812"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["N802"]
