@@ -12,6 +12,7 @@ from pathlib import Path
 from ._runner import (
     assemble_result,
     measure_energy,
+    run_accuracy,
     tokenize_prompts,
     validate_and_write,
 )
@@ -54,17 +55,21 @@ def quantize_model(
     return output_dir
 
 
-def load_quantized_model(quant_dir: Path = _QUANT_DIR, attn_impl: str = "eager"):
-    """Load quantized model with do_fuse=False for hook compatibility."""
+def load_quantized_model(quant_dir: Path = _QUANT_DIR, attn_impl: str = "eager", fused: bool = True):
+    """Load quantized model.
+
+    fused=True: use fused AWQ kernels (fast, for standalone energy measurement).
+    fused=False: disable fusion (slower, but compatible with per-layer forward hooks).
+    """
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer, AwqConfig
 
-    logger.info("Loading quantized model from %s", quant_dir)
+    logger.info("Loading quantized model from %s (fused=%s)", quant_dir, fused)
     tokenizer = AutoTokenizer.from_pretrained(str(quant_dir))
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    quant_config = AwqConfig(bits=4, do_fuse=False)
+    quant_config = AwqConfig(bits=4, do_fuse=fused)
     model = AutoModelForCausalLM.from_pretrained(
         str(quant_dir),
         quantization_config=quant_config,
@@ -82,7 +87,10 @@ def run(cfg: Config, stack_sparsity: float | None = None) -> dict:
     quant_dir = quantize_model(cfg.model_id)
 
     # Step 2: Load quantized model
-    model, tokenizer = load_quantized_model(quant_dir, attn_impl=cfg.attn_impl)
+    # Fused AWQ kernels are fast but incompatible with per-layer hooks.
+    # Use fused for standalone measurement, unfused when stacking sparsity hooks.
+    use_fused = stack_sparsity is None
+    model, tokenizer = load_quantized_model(quant_dir, attn_impl=cfg.attn_impl, fused=use_fused)
 
     # Step 3: Prompts
     prompts = load_prompts(n_prompts=cfg.n_prompts, seed=cfg.seed, split=cfg.wikitext_split)
@@ -120,9 +128,10 @@ def run(cfg: Config, stack_sparsity: float | None = None) -> dict:
         "achieved_mlp_per_layer": None,
         "target_attn_top_k_frac": None,
         "attention_sink_preserved": None,
-        "quantization": {"method": "awq", "bits": 4, "group_size": 128},
+        "quantization": {"method": "awq", "bits": 4, "group_size": 128, "fused": use_fused},
     }
 
-    result = assemble_result(cfg, phase_name, energy, {}, sparsity=sparsity_info)
+    accuracy = run_accuracy(cfg, model, tokenizer)
+    result = assemble_result(cfg, phase_name, energy, accuracy, sparsity=sparsity_info)
     validate_and_write(result, cfg, f"{phase_name}.json")
     return result
