@@ -1,0 +1,72 @@
+{
+  "phase": "phase0_baseline",
+  "model_id": "meta-llama/Llama-3.2-1B-Instruct",
+  "timestamp_utc": "2026-04-22T04:32:55.308060+00:00",
+  "config": {
+    "dtype": "float16",
+    "attn_impl": "eager",
+    "n_runs": 50,
+    "n_tokens": 256,
+    "n_prompts": 50,
+    "seed": 0,
+    "lock_clocks": false,
+    "sample_interval_ms": 50
+  },
+  "energy": {
+    "joules_per_token": {
+      "mean": 1.924,
+      "ci_low": 1.9138,
+      "ci_high": 1.9337,
+      "n": 50
+    },
+    "total_energy_j": {
+      "mean": 492.544,
+      "ci_low": 489.9328,
+      "ci_high": 495.0272,
+      "n": 50
+    },
+    "wallclock_s": {
+      "mean": 4.539007092198582,
+      "ci_low": 4.44822695035461,
+      "ci_high": 4.629787234042554,
+      "n": 50
+    },
+    "mean_power_w": {
+      "mean": 87.1,
+      "ci_low": 86.0,
+      "ci_high": 88.0,
+      "n": 50
+    },
+    "peak_power_w": 92.0,
+    "tokens_per_second": {
+      "mean": 56.4,
+      "ci_low": 55.0,
+      "ci_high": 57.5,
+      "n": 50
+    }
+  },
+  "accuracy": {
+    "perplexity_wikitext2": 11.49,
+    "hellaswag_acc": 0.4513,
+    "hellaswag_acc_norm": 0.608
+  },
+  "sparsity": {
+    "target_mlp": null,
+    "achieved_mlp_mean": null,
+    "achieved_mlp_per_layer": null,
+    "target_attn_top_k_frac": null,
+    "attention_sink_preserved": null,
+    "quantization": null
+  },
+  "metadata": {
+    "git_sha": "a4bb7114d9795fa9b0aa77ce481213a8b430a32a",
+    "git_dirty": true,
+    "python_version": "3.12.7",
+    "torch_version": "2.5.1+cu124",
+    "gpu_name": "NVIDIA GeForce RTX 3060",
+    "host": "DESKTOP-GPA5IUC",
+    "transformers_version": "4.47.1",
+    "cuda_version": "12.4",
+    "driver_version": "560.94"
+  }
+}

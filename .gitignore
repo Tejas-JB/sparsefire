@@ -35,11 +35,11 @@ uv.lock
 .cache/
 hf_cache/
 
-# Experiment outputs
-results/*.json
+# Experiment outputs (large artifacts only)
 results/*.png
 results/*.mp4
 !results/.gitkeep
+# Phase result JSONs are committed (small, reproducibility artifacts)
 
 # Model weights
 *.pt
