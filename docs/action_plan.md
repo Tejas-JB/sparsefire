@@ -17,6 +17,18 @@
 4. **Dev/run split.** Mac writes code & runs unit tests; PC runs anything touching CUDA, pynvml, or real model weights.
 5. **TDD for the measurement stack.** `energy.py` and `evaluate.py` are load-bearing — bad measurements invalidate the whole project. They get tests first.
 
+## Research-driven deviations from PRD (recorded here, reconciled in README)
+
+| # | PRD says | We do | Why |
+|---|---|---|---|
+| 1 | Hook `act_fn` output for activation sparsity | Hook `down_proj` input (gate·up product) | PRD site is CATS; TEAL (our stated method) hooks the intermediate. Better accuracy/sparsity tradeoff on Llama-3. |
+| 2 | Test 50% and 90% sparsity | Test 25%, 40%, 50%, 70% | Llama-3 degrades noticeably >40%; we want at least one "free" datapoint and one stressful one. Cliff sweep still 0→99%. |
+| 3 | No pre-quantized 1B AWQ mentioned clearly | We quantize Llama-3.2-1B ourselves with AutoAWQ (~3 min, one-time) | No public AWQ checkpoint for 1B. |
+| 4 | Sample power every 50ms, integrate | Use `nvmlDeviceGetTotalEnergyConsumption` delta as primary; keep 50ms polling as diagnostic trace | Direct cumulative-energy API is more accurate than numerical integration of sampled power. |
+| 5 | SDPA attention everywhere | `attn_implementation="eager"` for ALL phases | Phase 4 needs post-softmax weights, unavailable under SDPA. Eager-everywhere keeps apples-to-apples energy across phases. Caveat noted in README. |
+| 6 | `pynvml` | `nvidia-ml-py` (same API) | Official NVIDIA-maintained binding; `pynvml` package is community-deprecated. |
+| 7 | AWQ via `from_pretrained` default | Must pass `AwqConfig(..., do_fuse=False)` | Fused modules prevent per-layer forward hooks. |
+
 ---
 
 ## Agent teams & when to use each

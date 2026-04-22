@@ -1,0 +1,29 @@
+services:
+  gpu:
+    build: .
+    image: sparsefire:latest
+    # --privileged is required for nvidia-smi clock locking inside the container.
+    privileged: true
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    environment:
+      - HF_TOKEN=${HF_TOKEN}
+      - HF_HOME=/workspace/.cache/huggingface
+      - PYTHONPATH=/workspace
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    volumes:
+      - .:/workspace
+      - ./results:/workspace/results
+      - hf_cache:/workspace/.cache/huggingface
+    shm_size: 8gb
+    tty: true
+    stdin_open: true
+
+volumes:
+  hf_cache:

@@ -1,0 +1,105 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/Tejas-JB/sparsefire/blob/main/docs/results_schema.json",
+  "title": "SparsefirePhaseResult",
+  "description": "Schema every results/phase*.json must validate against.",
+  "type": "object",
+  "required": ["phase", "model_id", "timestamp_utc", "config", "energy", "accuracy", "metadata"],
+  "additionalProperties": false,
+  "properties": {
+    "phase": {
+      "type": "string",
+      "pattern": "^phase[0-6](_[a-z0-9_]+)?$"
+    },
+    "model_id": { "type": "string" },
+    "timestamp_utc": { "type": "string", "format": "date-time" },
+    "config": { "$ref": "#/definitions/Config" },
+    "energy": { "$ref": "#/definitions/Energy" },
+    "accuracy": { "$ref": "#/definitions/Accuracy" },
+    "sparsity": { "$ref": "#/definitions/Sparsity" },
+    "metadata": { "$ref": "#/definitions/Metadata" }
+  },
+  "definitions": {
+    "CI": {
+      "type": "object",
+      "required": ["mean", "ci_low", "ci_high", "n"],
+      "additionalProperties": false,
+      "properties": {
+        "mean": { "type": "number" },
+        "ci_low": { "type": "number" },
+        "ci_high": { "type": "number" },
+        "n": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "Config": {
+      "type": "object",
+      "required": ["dtype", "attn_impl", "n_runs", "n_tokens", "seed"],
+      "properties": {
+        "dtype": { "type": "string" },
+        "attn_impl": { "type": "string", "enum": ["eager", "sdpa"] },
+        "n_runs": { "type": "integer", "minimum": 1 },
+        "n_tokens": { "type": "integer", "minimum": 1 },
+        "n_prompts": { "type": "integer", "minimum": 1 },
+        "seed": { "type": "integer" },
+        "lock_clocks": { "type": "boolean" },
+        "sample_interval_ms": { "type": "integer" }
+      }
+    },
+    "Energy": {
+      "type": "object",
+      "required": ["joules_per_token", "total_energy_j", "wallclock_s", "mean_power_w"],
+      "properties": {
+        "joules_per_token": { "$ref": "#/definitions/CI" },
+        "total_energy_j": { "$ref": "#/definitions/CI" },
+        "wallclock_s": { "$ref": "#/definitions/CI" },
+        "mean_power_w": { "$ref": "#/definitions/CI" },
+        "peak_power_w": { "type": "number" },
+        "tokens_per_second": { "$ref": "#/definitions/CI" }
+      }
+    },
+    "Accuracy": {
+      "type": "object",
+      "properties": {
+        "perplexity_wikitext2": { "type": "number" },
+        "hellaswag_acc": { "type": "number", "minimum": 0, "maximum": 1 },
+        "hellaswag_acc_norm": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "Sparsity": {
+      "type": "object",
+      "properties": {
+        "target_mlp": { "type": ["number", "null"] },
+        "achieved_mlp_mean": { "type": ["number", "null"] },
+        "achieved_mlp_per_layer": {
+          "type": ["array", "null"],
+          "items": { "type": "number" }
+        },
+        "target_attn_top_k_frac": { "type": ["number", "null"] },
+        "attention_sink_preserved": { "type": ["boolean", "null"] },
+        "quantization": {
+          "type": ["object", "null"],
+          "properties": {
+            "method": { "type": "string" },
+            "bits": { "type": "integer" },
+            "group_size": { "type": "integer" }
+          }
+        }
+      }
+    },
+    "Metadata": {
+      "type": "object",
+      "required": ["git_sha", "python_version", "torch_version", "gpu_name"],
+      "properties": {
+        "git_sha": { "type": "string" },
+        "git_dirty": { "type": "boolean" },
+        "python_version": { "type": "string" },
+        "torch_version": { "type": "string" },
+        "transformers_version": { "type": "string" },
+        "gpu_name": { "type": "string" },
+        "driver_version": { "type": "string" },
+        "cuda_version": { "type": "string" },
+        "host": { "type": "string" }
+      }
+    }
+  }
+}
