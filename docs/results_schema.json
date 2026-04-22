@@ -81,7 +81,8 @@
           "properties": {
             "method": { "type": "string" },
             "bits": { "type": "integer" },
-            "group_size": { "type": "integer" }
+            "group_size": { "type": "integer" },
+            "fused": { "type": ["boolean", "null"] }
           }
         }
       }

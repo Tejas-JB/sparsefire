@@ -1,7 +1,7 @@
-"""Phase 4 — post-softmax top-k attention sparsity with attention-sink preservation.
+"""Phase 4 — pre-softmax top-k attention sparsity with attention-sink preservation.
 
-Zeroes all but top-k% of attention scores after softmax, renormalizes,
-and preserves the first token (attention sink). Measures energy impact.
+Masks all but top-k% of attention logits before softmax (setting rest to -inf),
+preserves the first token (attention sink). Measures energy impact.
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ from ._runner import (
     assemble_result,
     load_model_and_tokenizer,
     measure_energy,
+    run_accuracy,
     tokenize_prompts,
     validate_and_write,
 )
@@ -58,6 +59,8 @@ def run(cfg: Config, top_k_frac: float = 0.5, stack_phases: list[str] | None = N
         "quantization": None,
     }
 
-    result = assemble_result(cfg, phase_name, energy, {}, sparsity=sparsity_info)
+    accuracy = run_accuracy(cfg, model, tokenizer)
+
+    result = assemble_result(cfg, phase_name, energy, accuracy, sparsity=sparsity_info)
     validate_and_write(result, cfg, f"{phase_name}.json")
     return result

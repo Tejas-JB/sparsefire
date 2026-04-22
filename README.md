@@ -61,7 +61,7 @@ The brain silences >95% of neurons at any moment. Llama-3.2-1B collapses at the 
 - **Accuracy**: WikiText-2 perplexity (sliding window) + HellaSwag 0-shot via lm-eval 0.4.5
 - **Attention**: `attn_implementation="eager"` across all phases (required for Phase 4; keeps comparisons apples-to-apples)
 - **Sparsity**: TEAL-style magnitude thresholding on `down_proj` input (the gate×up product), calibrated per-layer on WikiText-2 train split
-- **Quantization**: AutoAWQ INT4, group_size=128, `do_fuse=False` (preserves per-layer hooks)
+- **Quantization**: AutoAWQ INT4, group_size=128, `do_fuse=True` standalone / `do_fuse=False` for hook-stacking
 
 Baseline CI width: 1.04% of mean (50 runs). No clock locking (Windows WDDM); stability achieved via warmup + bootstrap.
 
@@ -100,7 +100,7 @@ These are not weaknesses — they're what separates honest measurement from hype
 
 2. **Brain comparison is approximate.** The "~2 J/token" brain equivalent is derived from 20W whole-brain power / ~10 tokens/sec reading rate. The brain doesn't do next-token prediction. See [docs/brain_anchor.md](docs/brain_anchor.md) for the full derivation and bounds.
 
-3. **Quantization results reflect the naive dequantize path.** On Windows without triton GEMM kernels, AutoAWQ uses `dequantize + matmul` on every forward pass — 12x slower than fp16. On Linux with optimized kernels, INT4 AWQ delivers real bandwidth savings. Our result documents the overhead, not the ceiling.
+3. **Quantization uses fused AWQ GEMM kernels** for standalone measurement (`do_fuse=True`). The hook-stacking variant uses `do_fuse=False` (naive dequantize path) because fused modules prevent per-layer forward hooks. Both results are reported separately.
 
 4. **Single model, single GPU.** Llama-3.2-1B-Instruct on RTX 3060 12GB. Larger models on different hardware will produce different numbers. We invite replication.
 
