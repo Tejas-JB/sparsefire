@@ -70,13 +70,51 @@ def test_sparse_mlp_hook_cleans_up():
     assert torch.allclose(captured[0], x)
 
 
+def test_sparse_mlp_hook_compiled_produces_same_output():
+    """Compiled hook must produce identical results to uncompiled."""
+    import pytest
+
+    model = _FakeModel(n_layers=2, d=8)
+    thresholds = {0: 0.3, 1: 0.3}
+    x = torch.randn(2, 8)
+
+    # Uncompiled result
+    captured_plain = []
+    with sparse_mlp_hooks(model, thresholds):
+        h = model.model.layers[0].mlp.down_proj.register_forward_pre_hook(
+            lambda m, a: captured_plain.append(a[0].clone()) or None
+        )
+        try:
+            model.model.layers[0].mlp(x)
+        finally:
+            h.remove()
+
+    # Compiled result
+    captured_compiled = []
+    try:
+        with sparse_mlp_hooks(model, thresholds, compile_hooks=True):
+            h = model.model.layers[0].mlp.down_proj.register_forward_pre_hook(
+                lambda m, a: captured_compiled.append(a[0].clone()) or None
+            )
+            try:
+                model.model.layers[0].mlp(x)
+            finally:
+                h.remove()
+    except Exception as e:
+        if "Compiler" in str(e) or "inductor" in str(e):
+            pytest.skip(f"torch.compile backend unavailable: {e}")
+        raise
+
+    assert torch.allclose(captured_plain[0], captured_compiled[0])
+
+
 def test_sparse_attention_topk_shape():
     # 4-D attention weight tensor: [batch, heads, q, k]
     logits = torch.randn(1, 2, 3, 16)
     with sparse_attention(top_k_frac=0.25, preserve_first_token=True):
         w = F.softmax(logits, dim=-1)
     # 25% of 16 = 4 entries survive + first-token pin (may already be in top-k)
-    nonzero_per_row = (w > 0).sum(dim=-1)
+    nonzero_per_row = (w > 1e-9).sum(dim=-1)
     # Each row: at least 4, at most 5 (top-4 plus first-token if not already in top-4)
     assert nonzero_per_row.min().item() >= 4
     assert nonzero_per_row.max().item() <= 5

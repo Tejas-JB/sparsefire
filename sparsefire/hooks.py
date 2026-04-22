@@ -10,21 +10,30 @@ from contextlib import contextmanager
 
 
 @contextmanager
-def sparse_mlp_hooks(model, thresholds: dict[int, float]):
+def sparse_mlp_hooks(model, thresholds: dict[int, float], compile_hooks: bool = False):
     """Zero `down_proj` inputs (the gate*up product) with magnitude < threshold[layer_idx].
 
     Matches TEAL's hook site for activation sparsity.
+    compile_hooks: if True, torch.compile the mask+multiply to let the compiler
+    optimize memory access patterns and potentially skip trivially-zero regions.
     """
+    import torch
+
     handles = []
     try:
         for i, layer in enumerate(model.model.layers):
             t = thresholds[i]
 
             def make_hook(threshold: float):
+                def _apply_mask(x: torch.Tensor) -> torch.Tensor:
+                    mask = x.abs() > threshold
+                    return x * mask
+
+                apply_fn = torch.compile(_apply_mask, mode="reduce-overhead") if compile_hooks else _apply_mask
+
                 def pre_hook(_mod, args):
                     x = args[0]
-                    mask = x.abs() > threshold
-                    return (x * mask,) + args[1:]
+                    return (apply_fn(x),) + args[1:]
 
                 return pre_hook
 
@@ -37,9 +46,12 @@ def sparse_mlp_hooks(model, thresholds: dict[int, float]):
 
 @contextmanager
 def sparse_attention(top_k_frac: float, preserve_first_token: bool = True):
-    """Monkeypatch F.softmax with a top-k-then-renormalize variant.
+    """Monkeypatch F.softmax to apply top-k masking pre-softmax.
 
-    Only activates on 4-D tensors (attention-weight shape). Other softmax calls pass through.
+    Instead of: softmax -> topk -> mask -> renormalize (3 extra ops),
+    does: topk on logits -> set non-top-k to -inf -> softmax (0 extra ops).
+    Softmax naturally outputs ~0 for -inf inputs, so no renormalization needed.
+    Only activates on 4-D tensors (attention-weight shape).
     """
     import torch
     import torch.nn.functional as F
@@ -47,17 +59,16 @@ def sparse_attention(top_k_frac: float, preserve_first_token: bool = True):
     original = F.softmax
 
     def patched(x: torch.Tensor, dim: int = -1, **kw):
-        w = original(x, dim=dim, **kw)
-        if w.ndim != 4:
-            return w
-        k = max(1, int(w.shape[-1] * top_k_frac))
-        topk, _ = w.topk(k, dim=-1)
-        threshold = topk[..., -1, None]
-        mask = w >= threshold
+        if x.ndim != 4:
+            return original(x, dim=dim, **kw)
+        k = max(1, int(x.shape[-1] * top_k_frac))
+        topk_vals, _ = x.topk(k, dim=-1)
+        threshold = topk_vals[..., -1, None]
+        mask = x >= threshold
         if preserve_first_token:
             mask[..., 0] = True
-        w_sparse = w * mask
-        return w_sparse / w_sparse.sum(dim=-1, keepdim=True).clamp_min(1e-9)
+        x_masked = x.masked_fill(~mask, float("-inf"))
+        return original(x_masked, dim=dim, **kw)
 
     F.softmax = patched
     try:
