@@ -70,42 +70,18 @@ def test_sparse_mlp_hook_cleans_up():
     assert torch.allclose(captured[0], x)
 
 
-def test_sparse_mlp_hook_compiled_produces_same_output():
-    """Compiled hook must produce identical results to uncompiled."""
-    import pytest
+def test_sparse_mlp_hook_does_not_modify_original():
+    """Hook must not modify the original input tensor in-place."""
+    model = _FakeModel(n_layers=1, d=4)
+    thresholds = {0: 0.5}
+    x = torch.tensor([[0.1, 0.9, -0.3, 0.7]])
+    x_orig = x.clone()
 
-    model = _FakeModel(n_layers=2, d=8)
-    thresholds = {0: 0.3, 1: 0.3}
-    x = torch.randn(2, 8)
-
-    # Uncompiled result
-    captured_plain = []
     with sparse_mlp_hooks(model, thresholds):
-        h = model.model.layers[0].mlp.down_proj.register_forward_pre_hook(
-            lambda m, a: captured_plain.append(a[0].clone()) or None
-        )
-        try:
-            model.model.layers[0].mlp(x)
-        finally:
-            h.remove()
+        _ = model.model.layers[0].mlp(x)
 
-    # Compiled result
-    captured_compiled = []
-    try:
-        with sparse_mlp_hooks(model, thresholds, compile_hooks=True):
-            h = model.model.layers[0].mlp.down_proj.register_forward_pre_hook(
-                lambda m, a: captured_compiled.append(a[0].clone()) or None
-            )
-            try:
-                model.model.layers[0].mlp(x)
-            finally:
-                h.remove()
-    except Exception as e:
-        if "Compiler" in str(e) or "inductor" in str(e):
-            pytest.skip(f"torch.compile backend unavailable: {e}")
-        raise
-
-    assert torch.allclose(captured_plain[0], captured_compiled[0])
+    # Original tensor should be unchanged (hook uses clone internally)
+    assert torch.allclose(x, x_orig)
 
 
 def test_sparse_attention_topk_shape():

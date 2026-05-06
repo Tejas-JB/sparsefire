@@ -10,30 +10,23 @@ from contextlib import contextmanager
 
 
 @contextmanager
-def sparse_mlp_hooks(model, thresholds: dict[int, float], compile_hooks: bool = False):
+def sparse_mlp_hooks(model, thresholds: dict[int, float]):
     """Zero `down_proj` inputs (the gate*up product) with magnitude < threshold[layer_idx].
 
     Matches TEAL's hook site for activation sparsity.
-    compile_hooks: if True, torch.compile the mask+multiply to let the compiler
-    optimize memory access patterns and potentially skip trivially-zero regions.
+    Uses in-place masked_fill_ to minimize temporary tensor allocations.
     """
-    import torch
-
     handles = []
     try:
         for i, layer in enumerate(model.model.layers):
             t = thresholds[i]
 
             def make_hook(threshold: float):
-                def _apply_mask(x: torch.Tensor) -> torch.Tensor:
-                    mask = x.abs() > threshold
-                    return x * mask
-
-                apply_fn = torch.compile(_apply_mask, mode="reduce-overhead") if compile_hooks else _apply_mask
-
                 def pre_hook(_mod, args):
                     x = args[0]
-                    return (apply_fn(x),) + args[1:]
+                    out = x.clone()
+                    out.masked_fill_(x.abs() <= threshold, 0)
+                    return (out,) + args[1:]
 
                 return pre_hook
 

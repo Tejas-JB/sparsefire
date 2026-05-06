@@ -1,7 +1,8 @@
-"""Phase 3 — AutoAWQ INT4 quantization, loaded with do_fuse=False.
+"""Phase 3 — AutoAWQ INT4 quantization with fused CUDA GEMM kernels.
 
 Quantizes Llama-3.2-1B-Instruct to INT4 AWQ (group_size=128), saves locally,
-then measures energy. Optionally stacks activation sparsity on top.
+then measures energy. Uses awq_ext fused kernels for fast INT4 matmul.
+Optionally stacks activation sparsity on top.
 """
 
 from __future__ import annotations
@@ -55,22 +56,25 @@ def quantize_model(
     return output_dir
 
 
-def load_quantized_model(quant_dir: Path = _QUANT_DIR, attn_impl: str = "eager", fused: bool = True):
-    """Load quantized model.
+def load_quantized_model(
+    quant_dir: Path = _QUANT_DIR,
+    attn_impl: str = "eager",
+):
+    """Load quantized model with awq_ext fused CUDA GEMM kernels.
 
-    fused=True: use fused AWQ kernels (fast, for standalone energy measurement).
-    fused=False: disable fusion (slower, but compatible with per-layer forward hooks).
+    Uses do_fuse=False (fused attention requires flash_attn, unavailable on Windows).
+    The critical speedup comes from awq_ext GEMM kernels for INT4 linear layers,
+    which are used automatically when autoawq-kernels is installed.
     """
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer, AwqConfig
 
-    logger.info("Loading quantized model from %s (fused=%s)", quant_dir, fused)
+    logger.info("Loading quantized model from %s", quant_dir)
     tokenizer = AutoTokenizer.from_pretrained(str(quant_dir))
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    fuse_kwargs = {"fuse_max_seq_len": 512} if fused else {}
-    quant_config = AwqConfig(bits=4, do_fuse=fused, **fuse_kwargs)
+    quant_config = AwqConfig(bits=4, do_fuse=False)
     model = AutoModelForCausalLM.from_pretrained(
         str(quant_dir),
         quantization_config=quant_config,
@@ -87,11 +91,8 @@ def run(cfg: Config, stack_sparsity: float | None = None) -> dict:
     # Step 1: Quantize (or load cached)
     quant_dir = quantize_model(cfg.model_id)
 
-    # Step 2: Load quantized model
-    # Fused AWQ kernels are fast but incompatible with per-layer hooks.
-    # Use fused for standalone measurement, unfused when stacking sparsity hooks.
-    use_fused = stack_sparsity is None
-    model, tokenizer = load_quantized_model(quant_dir, attn_impl=cfg.attn_impl, fused=use_fused)
+    # Step 2: Load quantized model (awq_ext provides fused CUDA GEMM kernels)
+    model, tokenizer = load_quantized_model(quant_dir, attn_impl=cfg.attn_impl)
 
     # Step 3: Prompts
     prompts = load_prompts(n_prompts=cfg.n_prompts, seed=cfg.seed, split=cfg.wikitext_split)
@@ -129,7 +130,7 @@ def run(cfg: Config, stack_sparsity: float | None = None) -> dict:
         "achieved_mlp_per_layer": None,
         "target_attn_top_k_frac": None,
         "attention_sink_preserved": None,
-        "quantization": {"method": "awq", "bits": 4, "group_size": 128, "fused": use_fused},
+        "quantization": {"method": "awq", "bits": 4, "group_size": 128},
     }
 
     accuracy = run_accuracy(cfg, model, tokenizer)

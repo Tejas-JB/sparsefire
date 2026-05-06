@@ -1,12 +1,12 @@
 {
   "phase": "phase3_quant",
   "model_id": "meta-llama/Llama-3.2-1B-Instruct",
-  "timestamp_utc": "2026-04-22T05:37:34.239105+00:00",
+  "timestamp_utc": "2026-05-06T00:14:35.956179+00:00",
   "config": {
     "dtype": "float16",
     "attn_impl": "eager",
-    "n_runs": 20,
-    "n_tokens": 128,
+    "n_runs": 50,
+    "n_tokens": 256,
     "n_prompts": 50,
     "seed": 0,
     "lock_clocks": false,
@@ -14,38 +14,42 @@
   },
   "energy": {
     "joules_per_token": {
-      "mean": 24.433686892361113,
-      "ci_low": 24.383346831597223,
-      "ci_high": 24.48356267361111,
-      "n": 20
+      "mean": 1.1105184885546284,
+      "ci_low": 1.1046444366399082,
+      "ci_high": 1.1163996417624522,
+      "n": 50
     },
     "total_energy_j": {
-      "mean": 3025.4044000000004,
-      "ci_low": 2820.8795,
-      "ci_high": 3131.02145,
-      "n": 20
+      "mean": 272.01988,
+      "ci_low": 256.1253,
+      "ci_high": 284.31844,
+      "n": 50
     },
     "wallclock_s": {
-      "mean": 24.034518005000244,
-      "ci_low": 22.414690120000433,
-      "ci_high": 24.855465570000526,
-      "n": 20
+      "mean": 6.550635583999983,
+      "ci_low": 6.175304973999974,
+      "ci_high": 6.839768561999963,
+      "n": 50
     },
     "mean_power_w": {
-      "mean": 125.94766763362561,
-      "ci_low": 125.77107248537425,
-      "ci_high": 126.12022733618838,
-      "n": 20
+      "mean": 41.66836084374288,
+      "ci_low": 41.35790928054203,
+      "ci_high": 41.97916288482374,
+      "n": 50
     },
-    "peak_power_w": 128.315,
+    "peak_power_w": 45.421,
     "tokens_per_second": {
-      "mean": 5.627726489271272,
-      "ci_low": 5.149790525251196,
-      "ci_high": 6.57902939808776,
-      "n": 20
+      "mean": 44.56298409598454,
+      "ci_low": 37.46363495472844,
+      "ci_high": 54.43627856149667,
+      "n": 50
     }
   },
-  "accuracy": {},
+  "accuracy": {
+    "perplexity_wikitext2": 12.555957274846712,
+    "hellaswag_acc": 0.4393547102170882,
+    "hellaswag_acc_norm": 0.5930093606851224
+  },
   "sparsity": {
     "target_mlp": null,
     "achieved_mlp_mean": null,
@@ -59,7 +63,7 @@
     }
   },
   "metadata": {
-    "git_sha": "38b1c0c3955d7e765b08d77bf4eaf1b1d6443956",
+    "git_sha": "5cae48cb86143f8adb5018f036faae6cb4a5d59f",
     "git_dirty": true,
     "python_version": "3.12.7",
     "torch_version": "2.5.1+cu124",

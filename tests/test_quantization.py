@@ -1,4 +1,4 @@
-"""Unit tests for sparsefire.quantization — fused AWQ kernel toggle."""
+"""Unit tests for sparsefire.quantization — AWQ INT4 with awq_ext GEMM kernels."""
 
 from __future__ import annotations
 
@@ -15,8 +15,6 @@ def _mock_transformers():
         patch("transformers.AutoTokenizer") as mock_tok_cls,
         patch("transformers.AwqConfig") as mock_awq_cfg,
     ):
-        import torch
-
         tok = MagicMock()
         tok.pad_token = None
         tok.eos_token = "<eos>"
@@ -34,39 +32,26 @@ def _mock_transformers():
         }
 
 
-def test_load_quantized_fused_uses_do_fuse_true(_mock_transformers, tmp_path):
-    """When fused=True, AwqConfig should be called with do_fuse=True."""
+def test_load_quantized_uses_unfused(_mock_transformers, tmp_path):
+    """AwqConfig uses do_fuse=False (fused attention needs flash_attn)."""
     from sparsefire.quantization import load_quantized_model
 
-    load_quantized_model(tmp_path, attn_impl="eager", fused=True)
-
-    _mock_transformers["AwqConfig"].assert_called_once_with(
-        bits=4, do_fuse=True, fuse_max_seq_len=512
-    )
-
-
-def test_load_quantized_unfused_uses_do_fuse_false(_mock_transformers, tmp_path):
-    """When fused=False, AwqConfig should be called with do_fuse=False."""
-    from sparsefire.quantization import load_quantized_model
-
-    load_quantized_model(tmp_path, attn_impl="eager", fused=False)
+    load_quantized_model(tmp_path, attn_impl="eager")
 
     _mock_transformers["AwqConfig"].assert_called_once_with(bits=4, do_fuse=False)
 
 
-def test_load_quantized_default_is_fused(_mock_transformers, tmp_path):
-    """Default value of fused should be True."""
+def test_load_quantized_sets_pad_token(_mock_transformers, tmp_path):
+    """pad_token should be set to eos_token when None."""
     from sparsefire.quantization import load_quantized_model
 
-    load_quantized_model(tmp_path)
+    model, tokenizer = load_quantized_model(tmp_path)
 
-    _mock_transformers["AwqConfig"].assert_called_once_with(
-        bits=4, do_fuse=True, fuse_max_seq_len=512
-    )
+    assert tokenizer.pad_token == "<eos>"
 
 
-def test_run_standalone_uses_fused(tmp_path):
-    """run() without stack_sparsity should load model with fused=True."""
+def test_run_calls_load_and_measure(tmp_path):
+    """run() should quantize, load, measure energy, and write results."""
     from sparsefire.config import Config
 
     cfg = Config(
@@ -105,12 +90,11 @@ def test_run_standalone_uses_fused(tmp_path):
 
         run(cfg)
 
-        # Standalone (no stack_sparsity) should use fused=True
-        mock_load.assert_called_once_with(tmp_path, attn_impl=cfg.attn_impl, fused=True)
+        mock_load.assert_called_once_with(tmp_path, attn_impl=cfg.attn_impl)
 
 
-def test_run_stacked_uses_unfused(tmp_path):
-    """run() with stack_sparsity should load model with fused=False."""
+def test_run_stacked_calibrates_sparsity(tmp_path):
+    """run() with stack_sparsity should calibrate thresholds and apply hooks."""
     from sparsefire.config import Config
 
     cfg = Config(
@@ -142,7 +126,7 @@ def test_run_stacked_uses_unfused(tmp_path):
             "hellaswag_acc_norm": 0.60,
         }),
         patch("sparsefire.quantization.validate_and_write"),
-        patch("sparsefire.activation_sparsity.calibrate_thresholds", return_value={}),
+        patch("sparsefire.activation_sparsity.calibrate_thresholds", return_value={}) as mock_cal,
         patch("sparsefire.hooks.sparse_mlp_hooks"),
     ):
         mock_load.return_value = (MagicMock(), MagicMock())
@@ -151,5 +135,4 @@ def test_run_stacked_uses_unfused(tmp_path):
 
         run(cfg, stack_sparsity=0.5)
 
-        # Stacked (with hooks) should use fused=False
-        mock_load.assert_called_once_with(tmp_path, attn_impl=cfg.attn_impl, fused=False)
+        mock_cal.assert_called_once()

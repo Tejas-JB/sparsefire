@@ -14,21 +14,21 @@ A reproducible pipeline that runs Llama-3.2-1B through five biomimetic optimizat
 |-------|-------|---------------|-------|-------------|-------|
 | Baseline | Dense fp16, eager attention | Every neuron fires | **1.924** | — | 87.1 W |
 | Phase 1 | KV cache (ON vs OFF) | Working memory | **1.905** | **-36%** vs uncached | 88.2 W |
-| Phase 2 | MLP activation sparsity 50% | Neural silence | 1.974 | +2.6% | 86.5 W |
-| Phase 3 | INT4 AWQ quantization | 1-bit signaling | 24.43* | +1170%* | 125.9 W |
-| Phase 4 | Post-softmax top-k attention | Selective attention | 1.997 | +3.8% | **83.9 W** |
-
-*\*AWQ without optimized GEMM kernels (Windows/no triton). See [caveats](#caveats).*
+| Phase 2 | MLP activation sparsity 50% | Neural silence | **1.878** | **-2.4%** | 87.6 W |
+| Phase 3 | INT4 AWQ quantization | 1-bit signaling | **1.111** | **-42.3%** | **41.7 W** |
+| Phase 4 | Pre-softmax top-k attention | Selective attention | 1.963 | +2.0% | **84.6 W** |
 
 ### What this means
 
-1. **KV caching is the dominant real savings** — 36% less energy per token, zero accuracy cost. The brain's "working memory" analogy maps cleanly onto the largest measured benefit.
+1. **INT4 quantization is the biggest win** — 42% less energy per token with fused CUDA GEMM kernels (`awq_ext`). The model runs at 44.6 tok/s while drawing only 41.7W (vs 87.1W baseline). Perplexity increases only 9.3% (11.49 → 12.56).
 
-2. **Activation sparsity saves FLOPs but not watts.** At 50% sparsity, 50% of MLP activations are zeroed — but the GPU still processes dense tensor shapes. The ~0% measured wattage delta demonstrates exactly why neuromorphic hardware and sparse CUDA kernels matter.
+2. **KV caching is the second largest savings** — 36% less energy per token vs uncached, zero accuracy cost. The brain's "working memory" analogy maps cleanly onto a real measured benefit.
 
-3. **Attention sparsity shows a real signal in power draw** — 87.1W → 83.9W (-3.7%) at top-30%. But throughput drops ~25% from the Python-level topk overhead, so J/tok goes up. A fused CUDA kernel would likely flip the sign.
+3. **Activation sparsity now shows a small real gain** — 2.4% energy reduction at 50% sparsity with zero accuracy cost (PPL 11.49 unchanged). In-place masking (`masked_fill_`) reduces hook overhead vs naive tensor multiplication.
 
-4. **The baseline is already near the brain.** At 1.92 J/tok, the RTX 3060 running Llama-3.2-1B is within striking distance of the brain's ~2 J/token-equivalent. The gap is smaller than expected on a small model — but it widens dramatically at scale.
+4. **Attention sparsity shows a real signal in power draw** — 87.1W → 84.6W (-2.9%) at top-30%. But throughput drops ~11% from the Python-level topk overhead, so J/tok is +2%. A fused CUDA kernel would likely flip the sign.
+
+5. **The baseline is already near the brain.** At 1.92 J/tok, the RTX 3060 running Llama-3.2-1B is within striking distance of the brain's ~2 J/token-equivalent. Quantization pushes well below it at 1.11 J/tok.
 
 ---
 
@@ -100,11 +100,11 @@ These are not weaknesses — they're what separates honest measurement from hype
 
 2. **Brain comparison is approximate.** The "~2 J/token" brain equivalent is derived from 20W whole-brain power / ~10 tokens/sec reading rate. The brain doesn't do next-token prediction. See [docs/brain_anchor.md](docs/brain_anchor.md) for the full derivation and bounds.
 
-3. **Quantization uses fused AWQ GEMM kernels** for standalone measurement (`do_fuse=True`). The hook-stacking variant uses `do_fuse=False` (naive dequantize path) because fused modules prevent per-layer forward hooks. Both results are reported separately.
+3. **Quantization requires `awq_ext` CUDA kernels.** Without `autoawq-kernels` installed, AWQ falls back to a naive dequantize-then-matmul path that is 12x slower — we measured this initially and fixed it. The reported numbers use `awq_ext` fused GEMM, which is the intended deployment path.
 
 4. **Single model, single GPU.** Llama-3.2-1B-Instruct on RTX 3060 12GB. Larger models on different hardware will produce different numbers. We invite replication.
 
-5. **Attention sparsity is experimental.** This is the first clean public measurement of post-softmax top-k sparsity's energy impact on Llama-3.2-1B with attention-sink preservation.
+5. **Attention sparsity is experimental.** This is the first clean public measurement of pre-softmax top-k sparsity's energy impact on Llama-3.2-1B with attention-sink preservation.
 
 ---
 

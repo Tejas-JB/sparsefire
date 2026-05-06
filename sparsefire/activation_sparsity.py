@@ -172,7 +172,7 @@ def run(cfg: Config, sparsity: float = 0.40) -> dict:
         cfg,
         model,
         prompt_inputs,
-        hook_ctx=sparse_mlp_hooks(model, thresholds, compile_hooks=True),
+        hook_ctx=sparse_mlp_hooks(model, thresholds),
         phase_label=phase_label,
     )
 

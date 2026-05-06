@@ -49,6 +49,14 @@ def make_waterfall(results_dir: Path, out_path: Path | None = None) -> Path:
             ("+Act. sparsity\n50% (neural silence)", d["energy"]["joules_per_token"]["mean"])
         )
 
+    # INT4 AWQ quantization
+    quant = results_dir / "phase3_quant.json"
+    if quant.exists():
+        d = json.loads(quant.read_text())
+        phases.append(
+            ("+INT4 AWQ\n(1-bit signaling)", d["energy"]["joules_per_token"]["mean"])
+        )
+
     # Attention sparsity (best = top-30%)
     attn = results_dir / "phase4_attn_topk30.json"
     if attn.exists():
@@ -62,7 +70,7 @@ def make_waterfall(results_dir: Path, out_path: Path | None = None) -> Path:
 
     labels, values = zip(*phases, strict=True)
     x = np.arange(len(labels))
-    colors = ["#2196F3", "#f44336", "#4CAF50", "#FF9800", "#9C27B0"]
+    colors = ["#2196F3", "#f44336", "#4CAF50", "#FF9800", "#00BCD4", "#9C27B0"]
 
     fig, ax = plt.subplots(figsize=(12, 6))
     bars = ax.bar(
