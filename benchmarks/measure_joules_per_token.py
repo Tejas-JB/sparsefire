@@ -9,7 +9,11 @@ separating prompt processing (prefill) from token generation (decode) phases.
 import sys
 import time
 import statistics
+import json
+import csv
+import os
 from datetime import datetime
+from pathlib import Path
 from typing import Dict, Tuple, Optional, Callable, Any
 
 try:
@@ -393,6 +397,69 @@ def run_benchmark(
     return result
 
 
+def save_json_output(result: Dict, output_path: str):
+    """
+    Save benchmark result to JSON file.
+
+    Args:
+        result: Result dict from run_benchmark
+        output_path: Path to save JSON
+    """
+    # Ensure results directory exists
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+
+    with open(output_path, 'w') as f:
+        json.dump(result, f, indent=2)
+
+    print(f"Results saved to: {output_path}")
+
+
+def save_csv_output(result: Dict, csv_path: str = "results/aggregate.csv"):
+    """
+    Append benchmark result to CSV file for aggregate analysis.
+
+    Args:
+        result: Result dict from run_benchmark
+        csv_path: Path to CSV file
+    """
+    # Ensure results directory exists
+    Path(csv_path).parent.mkdir(parents=True, exist_ok=True)
+
+    # Check if file exists to determine if we need headers
+    file_exists = os.path.exists(csv_path)
+
+    # CSV row
+    row = {
+        "timestamp": result["timestamp"],
+        "model": result["model"],
+        "gpu": result["gpu"],
+        "total_tokens": result["total_tokens"],
+        "total_energy_joules_mean": result["total_energy_joules_mean"],
+        "joules_per_token_overall_mean": result["joules_per_token_overall_mean"],
+        "coefficient_of_variation": result["coefficient_of_variation"],
+        "num_runs": result["num_runs"]
+    }
+
+    with open(csv_path, 'a', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=row.keys())
+        if not file_exists:
+            writer.writeheader()
+        writer.writerow(row)
+
+    print(f"Aggregate data appended to: {csv_path}")
+
+
+def generate_default_output_path() -> str:
+    """
+    Generate default output path with timestamp.
+
+    Returns:
+        Path like "results/2026-05-28T10-30-00.json"
+    """
+    timestamp = datetime.utcnow().strftime("%Y-%m-%dT%H-%M-%S")
+    return f"results/{timestamp}.json"
+
+
 if __name__ == "__main__":
     import argparse
 
@@ -467,6 +534,18 @@ if __name__ == "__main__":
             model_name=args.model
         )
 
-        # Output handling will be added in next task
+        # Determine output path
+        if args.output is None:
+            output_path = generate_default_output_path()
+        else:
+            output_path = args.output
+
+        # Save JSON
+        save_json_output(result, output_path)
+
+        # Save CSV aggregate
+        csv_path = str(Path(output_path).parent / "aggregate.csv")
+        save_csv_output(result, csv_path)
+
         print(f"\nBenchmark complete!")
-        print("Output saving will be implemented in next task...")
+        print(f"View results: cat {output_path}")
