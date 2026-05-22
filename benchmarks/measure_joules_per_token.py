@@ -8,7 +8,7 @@ separating prompt processing (prefill) from token generation (decode) phases.
 
 import sys
 import time
-from typing import Dict, Tuple, Optional
+from typing import Dict, Tuple, Optional, Callable, Any
 
 try:
     import pynvml
@@ -41,6 +41,7 @@ class GPUEnergyMonitor:
             print("This script requires an NVIDIA GPU with energy counter support.")
             sys.exit(1)
 
+        # Store device count for potential multi-GPU support in future
         self.device_count = pynvml.nvmlDeviceGetCount()
         if self.device_count == 0:
             print("ERROR: No NVIDIA GPUs detected")
@@ -84,7 +85,7 @@ class GPUEnergyMonitor:
         """Read current total energy consumption in millijoules."""
         return pynvml.nvmlDeviceGetTotalEnergyConsumption(self.handle)
 
-    def measure_energy_delta(self, func) -> Tuple[float, any]:
+    def measure_energy_delta(self, func: Callable[[], Any]) -> Tuple[float, Any]:
         """
         Measure energy consumed by executing func.
 
@@ -92,8 +93,10 @@ class GPUEnergyMonitor:
             (energy_joules, func_result)
         """
         energy_start = self.get_energy_millijoules()
-        result = func()
-        energy_end = self.get_energy_millijoules()
+        try:
+            result = func()
+        finally:
+            energy_end = self.get_energy_millijoules()
 
         energy_millijoules = energy_end - energy_start
         energy_joules = energy_millijoules / 1000.0
@@ -105,15 +108,12 @@ class GPUEnergyMonitor:
         pynvml.nvmlShutdown()
 
 
-def check_gpu_load():
+def check_gpu_load(monitor: GPUEnergyMonitor):
     """
     Check if GPU is under load from background processes.
     Warns user if GPU utilization > 10%.
     """
-    pynvml.nvmlInit()
-    handle = pynvml.nvmlDeviceGetHandleByIndex(0)
-    util = pynvml.nvmlDeviceGetUtilizationRates(handle)
-    pynvml.nvmlShutdown()
+    util = pynvml.nvmlDeviceGetUtilizationRates(monitor.handle)
 
     if util.gpu > 10:
         print(f"WARNING: GPU utilization is {util.gpu}% before benchmark")
