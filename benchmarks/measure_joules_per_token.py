@@ -8,6 +8,8 @@ separating prompt processing (prefill) from token generation (decode) phases.
 
 import sys
 import time
+import statistics
+from datetime import datetime
 from typing import Dict, Tuple, Optional, Callable, Any
 
 try:
@@ -239,6 +241,48 @@ class LLMBenchmark:
         return energy, generated_tokens
 
 
+def calculate_statistics(measurements: list[Dict[str, float]]) -> Dict[str, float]:
+    """
+    Calculate mean and variance across multiple measurements.
+
+    Args:
+        measurements: List of measurement dicts from run_single_measurement
+
+    Returns:
+        Dict with aggregated statistics
+    """
+    if not measurements:
+        return {}
+
+    # Extract key metrics
+    total_energy = [m['total_energy_joules'] for m in measurements]
+    jpt_overall = [m['joules_per_token_overall'] for m in measurements]
+    jpt_gen = [m['joules_per_token_generation'] for m in measurements]
+
+    # Use first measurement for token counts (should be consistent)
+    first = measurements[0]
+
+    return {
+        "prompt_tokens": first['prompt_tokens'],
+        "generated_tokens": first['generated_tokens'],
+        "total_tokens": first['total_tokens'],
+        "prompt_phase_joules": first['prompt_phase_joules'],
+        "generation_phase_joules": first['generation_phase_joules'],
+        "total_energy_joules_mean": statistics.mean(total_energy),
+        "total_energy_joules_stdev": statistics.stdev(total_energy) if len(total_energy) > 1 else 0,
+        "joules_per_token_overall_mean": statistics.mean(jpt_overall),
+        "joules_per_token_overall_stdev": statistics.stdev(jpt_overall) if len(jpt_overall) > 1 else 0,
+        "joules_per_token_generation_mean": statistics.mean(jpt_gen),
+        "joules_per_token_generation_stdev": statistics.stdev(jpt_gen) if len(jpt_gen) > 1 else 0,
+        "coefficient_of_variation": (
+            statistics.stdev(jpt_overall) / statistics.mean(jpt_overall) * 100
+            if len(jpt_overall) > 1 and statistics.mean(jpt_overall) > 0
+            else 0
+        ),
+        "num_runs": len(measurements)
+    }
+
+
 def run_single_measurement(
     benchmark: LLMBenchmark,
     monitor: GPUEnergyMonitor,
@@ -279,58 +323,150 @@ def run_single_measurement(
     }
 
 
+def run_benchmark(
+    prompt: str,
+    num_tokens: int,
+    num_runs: int = 5,
+    model_name: str = "meta-llama/Llama-3.2-1B"
+) -> Dict:
+    """
+    Run full benchmark with multiple measurements.
+
+    Args:
+        prompt: Input prompt text
+        num_tokens: Number of tokens to generate
+        num_runs: Number of measurement runs
+        model_name: HuggingFace model identifier
+
+    Returns:
+        Dict with results and metadata
+    """
+    print(f"=== Joules-per-Token Benchmark ===")
+    print(f"Model: {model_name}")
+    print(f"Prompt: {prompt}")
+    print(f"Tokens to generate: {num_tokens}")
+    print(f"Number of runs: {num_runs}")
+    print()
+
+    # Initialize
+    monitor = GPUEnergyMonitor()
+    check_gpu_load(monitor)
+    gpu_info = monitor.get_gpu_info()
+
+    benchmark = LLMBenchmark(model_name)
+    benchmark.warmup()
+
+    # Run measurements
+    measurements = []
+    for i in range(num_runs):
+        print(f"Run {i+1}/{num_runs}...", end=" ", flush=True)
+        result = run_single_measurement(benchmark, monitor, prompt, num_tokens)
+        measurements.append(result)
+        print(f"{result['joules_per_token_overall']:.4f} J/token")
+
+    # Calculate statistics
+    stats = calculate_statistics(measurements)
+
+    # Build result dict
+    result = {
+        "model": model_name,
+        "gpu": gpu_info["gpu_model"],
+        "driver_version": gpu_info["driver_version"],
+        "cuda_version": gpu_info["cuda_version"],
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "prompt": prompt,
+        **stats
+    }
+
+    monitor.cleanup()
+
+    # Print summary
+    print(f"\n=== Results ===")
+    print(f"Mean J/token: {stats['joules_per_token_overall_mean']:.4f} ± {stats['joules_per_token_overall_stdev']:.4f}")
+    print(f"Coefficient of variation: {stats['coefficient_of_variation']:.2f}%")
+    print(f"Total energy (mean): {stats['total_energy_joules_mean']:.3f} J")
+
+    if stats['coefficient_of_variation'] > 5.0:
+        print(f"\nWARNING: High variance ({stats['coefficient_of_variation']:.2f}% > 5%)")
+        print("Consider running more iterations or checking for background GPU load")
+
+    return result
+
+
 if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Measure joules-per-token for LLM inference"
+        description="Measure joules-per-token for LLM inference using GPU energy counters"
+    )
+    parser.add_argument(
+        "--prompt",
+        type=str,
+        default="The quick brown fox jumps over the lazy dog",
+        help="Input prompt for inference"
+    )
+    parser.add_argument(
+        "--num-tokens",
+        type=int,
+        default=1000,
+        help="Number of tokens to generate (default: 1000)"
+    )
+    parser.add_argument(
+        "--num-runs",
+        type=int,
+        default=5,
+        help="Number of measurement runs (default: 5)"
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="meta-llama/Llama-3.2-1B",
+        help="HuggingFace model name (default: meta-llama/Llama-3.2-1B)"
+    )
+    parser.add_argument(
+        "--output",
+        type=str,
+        default=None,
+        help="Output JSON file path (default: results/<timestamp>.json)"
     )
     parser.add_argument(
         "--test",
         action="store_true",
         help="Run basic test mode"
     )
+
     args = parser.parse_args()
 
     if args.test:
-        print("=== GPU Energy Monitoring Test ===")
+        # Quick test mode
+        print("=== Running basic tests ===\n")
         monitor = GPUEnergyMonitor()
         info = monitor.get_gpu_info()
         print(f"GPU: {info['gpu_model']}")
         print(f"Driver: {info['driver_version']}")
         print(f"CUDA: {info['cuda_version']}")
-
-        def sleep_test():
-            time.sleep(0.1)
-            return "test"
-
-        energy, result = monitor.measure_energy_delta(sleep_test)
-        print(f"Energy delta test: {energy:.3f} J")
         monitor.cleanup()
-        print("\n=== LLM Benchmark Test ===")
 
-        # Test inference measurement
-        monitor = GPUEnergyMonitor()
         benchmark = LLMBenchmark()
-        check_gpu_load(monitor)
         benchmark.warmup(num_tokens=5)
 
+        monitor = GPUEnergyMonitor()
         result = run_single_measurement(
-            benchmark,
-            monitor,
-            prompt="The quick brown fox",
-            num_tokens=10
+            benchmark, monitor, "Test prompt", 10
+        )
+        monitor.cleanup()
+
+        print(f"\nTest measurement: {result['joules_per_token_overall']:.4f} J/token")
+        print("All tests passed!")
+    else:
+        # Full benchmark mode
+        result = run_benchmark(
+            prompt=args.prompt,
+            num_tokens=args.num_tokens,
+            num_runs=args.num_runs,
+            model_name=args.model
         )
 
-        print(f"\nMeasurement result:")
-        print(f"  Prompt tokens: {result['prompt_tokens']}")
-        print(f"  Generated tokens: {result['generated_tokens']}")
-        print(f"  Total energy: {result['total_energy_joules']:.3f} J")
-        print(f"  J/token (overall): {result['joules_per_token_overall']:.4f}")
-        print(f"  J/token (generation): {result['joules_per_token_generation']:.4f}")
-
-        monitor.cleanup()
-        print("\nAll tests passed!")
-    else:
-        print("Use --test flag to run basic tests")
-        print("Full benchmark mode coming in next task...")
+        # Output handling will be added in next task
+        print(f"\nBenchmark complete!")
+        print("Output saving will be implemented in next task...")
