@@ -8,6 +8,22 @@ A reproducible pipeline that runs Llama-3.2-1B through five biomimetic optimizat
 
 ---
 
+## Current Status
+
+**v0.1.0 (May 2026):** Initial release of joules-per-token benchmark script
+
+See [`benchmarks/`](benchmarks/) for measurement tools and methodology.
+
+## Quick Start
+
+```bash
+cd benchmarks
+pip install -r requirements.txt
+python measure_joules_per_token.py --prompt "Hello world" --num-tokens 1000
+```
+
+---
+
 ## Key findings
 
 | Phase | Trick | Brain analogy | J/tok | vs Baseline | Power |
